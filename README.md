@@ -12,24 +12,24 @@ This can be used in Express.js Router Middleware function.
 ```js
 const guardian = require('./guardian-express')
 app.use((req, res, next) => {
-	//res.locals.flash = []
-	
-	if(
-		guardian.check.object(guardian.DETECT, req.headers) ||
-		guardian.check.object(guardian.DETECT, req.body)
-		)
-		return res.sendStatus(401)
-	else
-	{
-		if(_.has(req.body, 'row'))
-			if(guardian.check.object(guardian.DETECT, req.body.row))
-				return res.sendStatus(401)
-		if(_.has(req.body, 'tableName'))
-			if(guardian.detectInjectionAll(req.body.tableName))
-				return res.sendStatus(401)
-		if(_.has(req.body, 'document'))
-			if(guardian.check.object(guardian.DETECT, req.body.document))
-				return res.sendStatus(401)
-	}
+  //res.locals.flash = []
+  
+  if(
+    guardian.check.object(guardian.DETECT, req.headers) ||
+    guardian.check.object(guardian.DETECT, req.body)
+    )
+    return res.sendStatus(401)
+  else
+  {
+    if(_.has(req.body, 'row'))
+      if(guardian.check.object(guardian.DETECT, req.body.row))
+        return res.sendStatus(401)
+    if(_.has(req.body, 'tableName'))
+      if(guardian.detectInjectionAll(req.body.tableName))
+        return res.sendStatus(401)
+    if(_.has(req.body, 'document'))
+      if(guardian.check.object(guardian.DETECT, req.body.document))
+        return res.sendStatus(401)
+  }
 })
 ```
