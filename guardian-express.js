@@ -1,8 +1,11 @@
 const _ = require("lodash")
+const createDOMPurify = require('dompurify')
+const { JSDOM } = require('jsdom')
+
 const blackList = {
-  command: ['sudo ', 'mv ', 'cp ', './'],
-  xss: ['setTimeout', 'setInterval', 'eval('],
-  sql: ['1=1', 'drop '],
+  command: ['sudo ', 'mv ', 'cp ', '\\.\\/'],
+  xss: ['setTimeout', 'setInterval', 'eval\\('],
+  sql: ['1\\=1', 'drop '],
 }
 const blackListTypes = ['command', 'xss', 'sql']
 
@@ -38,19 +41,37 @@ const method = {
     }
     return false
   },
-  sanitizeInjection: function (type, str) {
-    if(typeof str === 'string')
+  sanitizeInjection: function (type, plainText) {
+    let securedText
+    if(typeof plainText === 'string')
     {
+      securedText = plainText
+      console.log(plainText)
       for(let blackWord of blackList[type])
-        str = str.replace(new RegExp(`${blackWord}`, "gi"), '')
+      {
+        if(!securedText)
+          securedText = plainText.replace(new RegExp(`${blackWord}`, "gi"), '')
+        else
+          securedText = securedText.replace(new RegExp(`${blackWord}`, "gi"), '')
+      }
       if(type === 'xss')
-        str = sanitizeURL(str)
+      {
+        securedText = sanitizeURL(securedText)
+        if(securedText.length === plainText.length)
+        {
+          // When Guardian cannot sanitize, will try with DOMPurify.
+          console.log("DOMPurify trying...")
+          let window = new JSDOM('').window
+          let DOMPurify = createDOMPurify(window)
+          securedText = DOMPurify.sanitize(securedText)
+        }
+      }
       else if(type === 'sql')
       {
         // countSqlInjectionPattern 에 의한 세니타이징 코드 추가 필요.
       }
     }
-    return str
+    return securedText
   }
 }
 method.detectInjectionAll = function (str) {
@@ -64,6 +85,7 @@ method.sanitizeInjectionAll = function (str) {
   return str
 }
 function checkObject(cmd, obj) {
+  flag = false
   if(cmd !== 'detect' && cmd !== 'sanitize') return true
   if(!_.isObject(obj)) return false
   for(let key in obj)
@@ -74,12 +96,13 @@ function checkObject(cmd, obj) {
           obj[key] = method.sanitizeInjection(type, obj[key])
         else if(cmd === 'detect')
           if(method.detectInjection(type, obj[key]))
-            return true
+            flag = true
       }
   if(cmd === 'sanitize') return obj
-  else if(cmd === 'detect') return false
+  else if(cmd === 'detect') return flag
 }
 function checkArray(cmd, arr) {
+  let flag = false
   if(cmd !== 'detect' && cmd !== 'sanitize') return true
   if(Array.isArray(arr)) return false
   for(let [index, element] of arr.entries())
@@ -90,10 +113,25 @@ function checkArray(cmd, arr) {
           arr[index] = method.sanitizeInjection(type, element)
         else if(cmd === 'detect')
           if(method.detectInjection(type, element))
-            return true
+            flag = true
       }
   if(cmd === 'sanitize') return arr
-  else if(cmd === 'detect') return false
+  else if(cmd === 'detect') return flag
+}
+function checkPrimitive(cmd, value) {
+  let flag = false
+  if(cmd !== 'detect' && cmd !== 'sanitize') return true
+  if(typeof element === 'string')
+    for(let type of blackListTypes)
+      {
+        if(cmd === 'sanitize')
+          value = method.sanitizeInjection(type, value)
+        else if(cmd === 'detect')
+          if(method.detectInjection(type, value))
+            flag = true
+      }
+  if(cmd === 'sanitize') return value
+  else if(cmd === 'detect') return flag
 }
 
 const wholeObject = {
@@ -101,6 +139,7 @@ const wholeObject = {
   SANITIZE: 'sanitize', // for symbol text
   ...method,
   check: {
+    primitive: checkPrimitive,
     object: checkObject,
     array: checkArray
   }
